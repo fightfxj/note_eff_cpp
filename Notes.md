@@ -138,3 +138,217 @@ Notes for _Effective C++_
 
 ## 条款8：别让异常逃离析构函数
 
+  析构函数抛出异常而没有正确结束可能造成内存泄漏。如果需要对造成的异常作出反应，应该提供一个普通函数，而不是在析构函数中操作。
+  
+## 条款9：绝不在构造和析构过程中调用virtual函数
+
+  在derived class的构造过程中，base的构造函数会首先调用，在base构造函数执行过程中，derived class版本的virtual函数不会被调用。
+  
+## 条款10：令operator=返回一个reference to *this
+
+  为了实现“连锁赋值”，赋值操作符必须返回一个reference指向操作符的左侧实参。
+  
+## 条款11：在operator=中处理“自我赋值”
+
+  特别是赋值过程中需要申请新的空间的操作，特别要注意自我赋值的问题。否则会重复申请空间，且之前的空间没被释放。
+  
+  例如，用class保存一个指针指向动态分配的位图：
+  
+  ```
+  class Bitmap { ... };
+  Class Widget {
+      ...
+  private:
+      Bitmap* bp;       // 指针，指向一个从heap分配得到的对象。
+  };
+  
+  Widget&
+  Widget::operator=(const Widget& rhs) {
+      delete pb;
+      pb = new Bitmap(*rhs.pb);
+      return *this;
+  }
+  ```
+  
+  在自我赋值时，上述代码会将自己的pb先删掉，从而无法赋值。同时，该代码也不是“异常安全”的。如果new出问题，会有一个指针指向已经删除的空间。
+  
+  一种做法是“证同测试”（identity test），达到自我赋值检验的目的。另一种是copy-and-swap技术，可以提供异常安全性。
+  
+  ```
+  Widget& Widget::operator=(const Widget& rhs) {
+      Widget temp(rhs);   // 制作副本
+      swap(temp)          // 将副本与*this的数据交换
+      return *this;
+  }
+  ```
+  
+## 条款12：复制对象时勿忘其每一个成分
+
+* 编写copying函数时，确保（1）复制所有local成员变量，（2）调用所有base classes内的适当copying函数。
+
+* 不要让copy assignment操作符调用copy构造函数，或者反过来，应该建立一个新的private函数供copying函数共同调用。
+
+## 条款13：以对象管理资源
+
+* 使用shared_ptr和auto_ptr，它们在构造函数中获得资源，并在析构函数中释放。这被称为：Resource Acquisition is Initialization; RAII.
+
+  例如：
+
+  ```
+  Investment* createInvestment(); // 返回指针，指向动态分配对象。
+  void f() {
+    std::auto_ptr<Investment> pInv(createInvestment());
+  }
+
+  ```
+
+* auto_ptr若通过copying函数复制，会变成null，复制所得的指针获得资源唯一拥有权。
+
+* shared_ptr复制时，复制前后的指针都指向同一个对象，销毁时同时销毁。
+
+* auto_ptr和shared_ptr都在析构函数中用delete而不是delete []，所以不要在动态分配得到的array身上使用二者。
+
+## 条款14：在资源管理类中小心copy行为
+
+## 条款15：在资源管理类中提供对原始资源的访问
+
+* 显示转换，shared_ptr和auto_ptr都提供一个get成员函数，返回智能指针内部的原始指针的附件。
+
+* 隐式转换，用operatr->和operator*隐式转换至底部原始指针。
+
+* 显示转换比较安全，但隐式转换对客户比较方便。
+
+## 条款16：成对使用new和delete时要采取相同的形式
+
+  new配对delete，new[]配对delte[]
+  
+## 条款17：以独立语句将newed对象置入只能指针
+
+* 在“资源被创建”和“资源被转换为资源管理对象”两个时间点之间有可能发生异常。
+
+  例如：
+  
+  ```
+  int priority();
+  void processWidget(std::tr1::shared_ptr<Widget> pw, int priority);
+  
+  // 如下写法不安全：
+  processWidget(std::tr1::shared_ptr<Widget> (new Widget), priority())
+  
+  // priority()被调用的顺序由编译器确定，对同语句的执行顺序，编译器有控制的自由
+  // 如果priority()的调用发生异常，可能new Widget得到的资源没放入智能指针
+  
+  // 正确写法:
+  std::tr1::shared_ptr<Widget> pw(new Widget);
+  processWidget(pw, priority());
+  ```
+
+## 条款18：让接口容易被正确使用，不易被误用
+
+* 考虑用户可能做出什么样的错误
+
+* 导入新类型，封装和预先定义所有合法的输入
+
+  例如如下是一个安全有效的月份的定义：
+  
+  ```
+  class Month {
+  public:
+      static Month Jan() { return Month(1); }
+      ...
+  private:
+      explicit Month(int m)       // 阻止生成新的月份
+  }
+  Date d(Month::Jan(), Day(30), Year(1995));
+  ```
+  
+* 除非有好理由，否则尽量令你的types的行为与内置types一致。**提供行为一致的接口**。
+
+  例如客户知道int的行为，应该努力让你的types在合理的前提下有相同的表现。例如对a*b赋值不应该合法，所以operator*的返回值应该是const。
+  
+* 与其让客户将资源放入智能指针，不如只暴露智能指针给客户操作。消除客户的资源管理责任。
+
+  客户有可能忘记。
+  
+## 条款19：设计class犹如设计type
+
+  设计每个class都要面对的提问：
+  
+  * 新type的对象应该如何创建和销毁？
+  * 对象的初始化和对象的赋值该有什么区别？
+  * 新type的对象如果被passed by value，意味着什么？
+  * 什么是新type的“合法值”
+  * 新type需要配合某个继承图系吗？是则析构函数往往是virtual。
+  * 新type需要怎么样的转换
+  * 什么样的操作符和函数对此type是合理的？
+  * 什么样的标准函数应该是private？
+  * 谁该取用新tpye的成员？
+  * 什么是新type的未声明接口？
+  * 你的新type有多么一般化？是否应该用templete。
+  * 你真的需要一个新type吗？
+  
+## 条款20：宁以pass-by-reference-to-const替换pass-by-value
+
+* 缺省情况下C++以by value的方式传递对象至函数，参数和返回值都是一个以copy构造函数得到的副本。这可能导致过高的赋值开销。
+
+* 以by reference方式传递参数可以避免slicing（对象切割）问题。
+
+  当一个derived class对象以by value方式传递并被视为base class对象，base class的copy构造函数会被调用，而“草成此对象的行为像个derived class对象”的那些特化性质被完全切割掉了。
+  
+* 对STL迭代器和函数对象，以及内置类型，pass-by-value往往比较恰当
+
+## 条款21：必须返回对象时，别妄想返回其reference
+
+* reference只是个名称，代表某个既有的对象。
+
+  任何时候看到一个reference声明式，都应该立刻问自己，它的另一个名称是什么。
+  
+* 如果返回reference指向一个local对象，函数返回时，local对象就被销毁。
+
+## 条款22：将成员变量（data menbers）声明为priavate
+
+* 如果以函数取得或者设定成员变量，就可以实现：只读、只写、读写、无读写等访问控制。
+
+* **封装性**。日后可以改为用计算代替成员变量。
+
+  **public意味着不封装，不封装意味着不可改变**。protected成员变量就像public成员一样缺乏封装性。其实只有两种访问权限：private（提供封装）和其他（不提供封装）。
+  
+## 条款23：宁以non-member、non-friend替换member函数
+
+* 面向对象守则要求数据应尽可能封装。member函数带来的封装性比non-member函数低。
+
+* 对类进行操作的函数，可以用non-member函数的形式写成许多便利函数的方式，放在同一个namesapce中。
+
+  namespace可以跨越多个源码文件，而classes不能。
+  这正是C++标准程序库的组织方式。并不是拥有单一、整体、庞大的一个头文件，并在其中包含std的每一样东西，而是有几十个头文件，每个头文件声明std的某些机能。
+  
+## 条款24：若所有参数皆需类型转换，请为此采用non-member函数
+
+  例子：
+  
+  ```
+  class Rational {
+  public:
+      Rational (int numerator = 0, int demominator = 1); // 刻意不是explicit，允许int-to-Rational隐式转换。
+      int numerator() const;
+      int denominator() const;
+      
+      cosnt Rational operator* (const Rational& rhs) const; // 成员函数版本
+  private:
+      ...
+  }
+  
+  Rational onehalf(1, 2);
+  result = oneHalf * 2;             // 正确
+  result = 2 * oneHalf;             // 错误
+  result = 2.operator*(oneHalf);    // 错误，与上一行的调用方式等价
+  
+  // non-member版本：
+  const Rational operator* (const Rational& lhs, const Rational& rhs) {
+      ...
+  }
+  ```
+  
+  只有当参数位于参数列表内，这个参数才有可能被进行隐式转换。在成员版本的operator*中，只有rhs的操作数在参数列表中。
+  
+## 条款25：考虑写出一个不抛异常的swap函数
