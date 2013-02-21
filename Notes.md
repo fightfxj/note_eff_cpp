@@ -197,7 +197,7 @@ Notes for _Effective C++_
   ```
   Investment* createInvestment(); // 返回指针，指向动态分配对象。
   void f() {
-    std::auto_ptr<Investment> pInv(createInvestment());
+      std::auto_ptr<Investment> pInv(createInvestment());
   }
 
   ```
@@ -352,3 +352,112 @@ Notes for _Effective C++_
   只有当参数位于参数列表内，这个参数才有可能被进行隐式转换。在成员版本的operator*中，只有rhs的操作数在参数列表中。
   
 ## 条款25：考虑写出一个不抛异常的swap函数
+
+* std中默认的swap会进行三次复制
+
+* std命名空间的东西通常不允许改变，我们定制的swap可以实现为标准templates的特化版本
+
+  例如：
+  
+  ```
+  class Widget {
+  public:
+      ...
+      void swap(Widget& other) {
+          using std::swap;
+          swap(pImpl, other.pImpl)
+      }
+  }
+  
+  namespace std {
+      template<>            // std::swap的特化版本
+      void swap<Widget>(Widget&a, Widget&b) {
+          a.swap(b);
+      }
+  }
+  ```
+  
+  由于可能触及Widget的私有成员变量，特化版本中调用了Widget中提供的swap函数。同时在Widget中，声明using，表示使用std中的特化版本。
+  
+## 条款26：尽可能延后变量定义式的出现时间
+
+* 只有定义但是没有实参动作，将会调用default构造函数，造成额外开销。
+
+* 应该尽量延后定义直到能够给他初值实参为止，“以具有明显意义之初值”将变量初始化，还可以附带说明变量的目的。
+
+## 条款27：尽量少做转型动作
+
+* 两种风格的转型动作：
+
+  * C风格：(T)expression
+  * 函数风格：T(expression)
+
+* 四种新式转型：
+
+  * const_cast<T>(expression)：移除对象的常量性
+  * dynamic_cast<T>(expression)：安全向下转型，决定某对象是否归属继承体系中的某个类型。唯一无法由旧式语法执行的转型动作。
+  * reinterpret_cast<T>(expression)：实际结果取决于编译器，因此不可移植。
+  * static_cast<T>(expression)：强迫隐式转换
+  
+* 尽量避免dynamic_cast，试着开发无需转型的替代设计。尽量使用新式的转型。
+
+## 条款28：避免返回handles指向对象内部成分
+
+  这样做可以帮助可封装性，帮助const成员函数的行为像个const
+  
+## 条款29：努力做到“异常安全”
+
+* 异常被抛出时，带有异常安全行的函数会：
+
+  * 不泄漏任何资源，比如lock等不会被违法占据
+  * 不允许数据败坏，数据的逻辑性不会被破坏，例如表示对象数目的累加器逻辑仍然正确
+
+* 异常安全的三个保证层次
+
+  * 基本承诺：任何事物仍然在有效状态，没有任何对象或数据结构因此败坏。
+  * 强烈保证：程序状态不改变，如果函数失败，程序会回到“调用之前”的状态。
+  * 不抛异常：承诺不抛出异常，承诺总是能够完成指定的功能。
+
+* 往往用copy-and-swap实现强烈保证
+
+  关键在于“修改对象数据的副本，然后在一个不抛异常的函数中将修改后的数据与原件置换”。由于要制作副本，会有额外开销。
+
+* 一个软件系统要不就具备异常安全行，要不就全然否定
+
+## 条款30：透彻了解inlining的里里外外
+
+* inline函数背后的整体观念是，将“对此函数的每一个调用”都以函数本体替换之
+
+* 两种定义方式：
+  
+  * 显示指出inline
+  * 隐式：将函数定义在class的定义式中
+  
+* 过度inline可以造成严重的代码膨胀。将大多数inline限制在小型、被频繁调用的函数身上。
+
+## 条款31：将文件间的编译依存关系降至最低
+
+* 如果使用object references或object pointers可以完成任务，就不要使用objects
+
+* 如果可以，尽量以class声明式替换class定义式
+
+  例如：
+  
+  ```
+  class Date;                       // class声明式
+  Date today();
+  void clearAppointments(Date d);   // Date的定义式
+  ```
+  
+  声明上述两个函数并不需要知道Date的定义。
+  
+* 为声明式和定义式提供不同的头文件。使得编译相依于声明式，不要相依于定义式。
+
+  程序头文件应该以“完全且仅有声明式”的形式存在。这种做法无论是否涉及templates都适用。
+  
+## 条款32：确定你的public继承塑模出is-a关系
+
+* 如果让D public继承B，则意味着：每一个类型为D的对象同时也是一个类型为B的对象，反之不成立。同时，B对象可以派上用场的任何地方，D对象一样可以派上用场。
+
+## 条款33：避免掩盖继承而来的名称
+
