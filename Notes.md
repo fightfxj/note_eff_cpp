@@ -461,3 +461,254 @@ Notes for _Effective C++_
 
 ## 条款33：避免掩盖继承而来的名称
 
+* Derived class将base class的名字掩盖掉之后，base中的相应函数不再被继承，包括该函数的所有重载版本。
+  
+  public继承，而又不继承那些重载函数，也违反了public继承的is-a关系。
+  
+* 如果继承base class并加上重载函数，而又希望重新定义其中的一部分，必须为那些被掩盖的名字引入一个using声明式。
+
+## 条款34：区分接口继承和实现继承
+
+* 声明一个pure virtual函数的目的是为了让derived class只继承函数接口
+
+  例如：
+  
+  ```
+  class Shape {
+  public:
+      virtual void draw() const = 0;    // 纯虚函数
+      ...
+  }
+  
+  Shape* ps = new Rectangle;
+  ps->Shape::draw();                    // 调用Shape::draw
+  ```
+  
+  其实我们可以为pure virtual函数提供定义，C++不会发出怨言，但需要明确指出其class名称。这项性质用途有限。
+  
+* 声明impure virtual函数的目的，是让derived classes继承该函数的接口和缺省实现。
+
+* 声明non-virtual函数的目的是为了令derived classes继承函数的接口及一份强制性的实现。
+
+## 条款35：考虑virtual函数以外的其他选择
+
+* 用non-virtual interface（NVI）手法实现Template Method模式
+  
+  用non-virtual public成员函数，调用private virtual函数进行实际工作：
+  
+  ```
+  class GameCharacter {
+  public:
+      int healthValue() const {
+          ...                               // 做一些事前工作
+          int retVal = doHealthValue();     // 做真正的工作
+          ...                               // 做一些事后工作
+          return retVal;
+      }
+  private:
+      virtual int doHealthValue() const {   // derived class 
+          ...                               // 缺省算法，计算血量
+      }
+  }
+  ```
+  
+  healthValue()称为外覆盖器（wrapper）确保得以在一个virtual函数被调用前做准备工作，并在调用之后清理场景。
+
+* 用Function Pointers实现Strategy模式
+
+  可以要求每个人物的狗仔函数接受一个指针，指向一个血量计算函数。与virtual函数相比，提供了弹性：
+    * 同一任务类型的不同实体可以有不同的计算函数
+    * 某已知人物之健康指数计算函数可在运行期变更。
+    
+## 条款36：绝不重新定义继承而来的non-virtual函数
+
+  public继承意味着is-a的关系，base class定义non-virtual函数为该class建立起一个不变性（invariant），凌驾其特异性（specialization），规定了一份强制性的实现，不应该违反这一设计思想。
+  
+## 条款37：绝不重新定义继承而来的缺省参数值
+
+* 如果以base class的指针指向derived class，则使用的缺省参数值实际上是base class的缺省参数值。
+  
+  C++的这一设计是为了运行期效率，缺省参数值是静态绑定的（static binding），无需在运行期为virtual函数决定适当的缺省参数值。
+  
+## 条款38：通过复合塑模出has-a或“根据某物实现出”
+
+  例如，复合一个STL的容器，实现新容器，我们不能直接继承自STL。
+  
+## 条款39：明智而审慎的使用private继承
+
+* classes之间的继承关系是private，编译器不会自动将一个derived class对象转换成一个base class对象。由private base class继承而来的所有成员，在derived class中都会变成private属性。
+
+* private继承意味着implemented-in-terms-of（根据某物实现出）。private继承意味着只有实现部分被继承，接口部分应略去。
+
+* 在复合和private之间取舍时，尽可能使用复合，必要时才使用private继承。必要时主要指protected成员和/或virtual函数需要被访问，或空间方面的利害关系不容许使用复合时。
+
+## 条款40：明智而审慎的使用多重继承
+
+* 一个以上的base class具有相同的名称，会导致歧义。需要在调用时明确加上基类名指定要调用的函数。
+
+* 当出现菱形多重继承时，菱形上层的base class会有两份copy被继承到菱形下层的子类中。如果不希望复制，必须令带有自的class成为virtual base class
+
+  ```
+  class File { ... };
+  class InputFile: virtual public File { ... };
+  class OutputFile: virtual public File { ... };
+  class IOFile: public InputFile,
+                public OutputFile
+  { ... };
+  ```
+  
+  从正确行为的观点看，public继承应该总是virtual。但是virtual继承产生的class的对象体积更大，同时初始化的成本更高。
+  
+  如果不必要，就不要使用virtual bases，如果使用，则尽可能避免在其中放置数据。
+  
+* 多重继承的一个正当用途：“public继承某个interface class”，“private继承某个协助实现的class”的组合
+
+## 条款41：了解隐式接口和编译器多态
+
+  对template参数而言，接口是隐式的（implicit）。多态是通过template具现化和函数重载解析（function overloading resolution）发生于编译器
+  
+## 条款42：了解typename的双重意义
+
+* 在声明template类型参数时，class和tpename的意义完全相同。typename更被推荐，因为暗示参数并非一定是class类型
+
+* typename可以告诉编译器：这是个类型
+
+  ```
+  template<typename C>
+  void print2nd(const C& containre) {
+      if (container.size() >= 2)
+          typename C::const_iterator iter(container.begin()); // 若无typename，这个名字被假设为非类型
+          ...
+  }
+  ```
+  
+  任何时候当你想要在tmplate指涉一个嵌套从属类型名称，就必须在紧邻它的前一个位置加上关键字typename。如果不是嵌套从属名称，就不允许用typename。
+  
+  ```
+  template<typename C>
+  void f(const C& container,          // 不允许使用typename
+         typename C::iterator iter);  // 必须要用typename
+  ```
+  
+## 条款43：学习处理模板化基类的类的名称
+
+* 如果base class是一个template，并且有一个特化的版本不包含基类的某些函数，在derived class中要调用基类版本中的函数有三种处理方法：
+
+  * 在base class的调用动作之前加上this->
+  * 用using指明被掩盖的base class名称
+  * 明白的指出被调用函数在base class内，调用时加上base class的名字
+  
+## 条款44：将于参数无关的代码抽离templates
+
+* 使用template可能会导致代码膨胀
+
+## 条款45：运用成员函数模板接受所有兼容的类型
+
+* 运用member function templates
+
+  ```
+  class Top {...};
+  class Middle: public top {...};
+  class Bottom: public Middle {...};
+  
+  template<typename T>
+  class SmartPtr { 
+  public:
+      template<typename U>                  // mumber template
+      SmartPtr(const SmartPtr<U>& other);   // 为了生成copy构造函数
+      ...
+  }
+  
+  // 有了上述member function template，下面转换可以被实现：
+  SmartPtr<Top> pt1 = SmartPtr<Middle>(new Middle);   // middel转换成top
+  SmartPtr<Top> pt2 = SmartPtr<Bottom>(new Bottom);   // bottom转换成top
+  SmartPtr<const Top> pct2 = pt1;                     // top转换成const top
+  ```
+  
+  以上代码的意思是，对任何类型T和任何类型U，这里可以根据SmartPtr\<U\>生成一个SmartPtr<T>，因为SmartPtr<T>有个构造函数接受一个SmartPtr\<U\>参数。未声明为explicit，是为了允许隐式转换。
+  
+* member templates并不阻止编译器生成一个non-template的copy构造函数
+
+## 条款46：需要类型转换时请为模板定义非成员函数
+
+  为了让类型转换可以发生才所有实参身上，我们需要一个non-member函数，为了令这个函数自动具现话，我们需要将它声明在class内部，唯一的做法是定义一个friend函数。
+  
+  ```
+  template<typename T>
+  const Rational<T> doMultiply(const Rational<T>& lhs,
+                               const Rational<T>& rhs);
+  
+  template<typename T>
+  class Rational {
+  public:
+      ...
+  friend
+      const Rational<T> operator* (const Rational<T>& lhs,
+                                   const Rational<T>& rhs) {
+          return doMultiply(lhs, rhs);                            
+      }
+                                  
+  }
+  ```
+  
+## 条款47：用traits classes表现类型信息
+
+* traits：允许在编译期取得某些类型的信息。traits并不是C++关键字或一个预先定义好的构件；是一种技术，也是一个C++程序员共同遵守的协议。
+
+* 习惯上traits总被实现为structs。使用一个traits class
+    * 建立一组重载函数或函数模板，彼此间的差异只在于各自的traits参数。
+    * 建立一个控制函数或函数模板，调用上述函数并传递traits class提供的信息
+
+## 条款48：认识template元编程
+
+* 所谓template metaprogram是以C++写成、执行于C++编译器内的程序。一旦TMP程序结束执行，其输出，也就是从templates具现出来的若干C++源码，便会一如往常的被编译。
+
+* TMP已被证明为“图灵完全”（Turing-complete），可以计算任何事物。可以使用TMP声明变量、执行循环、编写和调用函数……
+
+* TMP主要是个“函数式语言”
+
+* 编译期计算阶乘：
+
+  ```
+  template<unsigned n>
+  struct Factorial {
+      enum { value= n * Factorial<n - 1>::value };
+  };
+  template<>
+  struct Factorial<0> {
+      enum { value = 1 };
+  }
+  
+  int main() {
+      std::cout << Factorial<5>::value;
+      return 0;
+  }
+  ```
+  
+## 条款49：了解new-handler的行为
+
+* operator new无法满足某一内存分配需求时会抛出异常。之前，会吸纳调用一个客户指定的错误处理函数，new-handler。
+
+## 条款50：了解new和delete的合理替换时机
+
+  主要有三个时机：检测运用上的错误；强化效能；收集使用上的统计数据
+  
+## 条款51：编写new和delete时需固守常规
+
+* operator new 应该内含一个无穷循环，并在其中尝试分配内存，如果无法满足内存需求，就该调用new-handler。应该有能力处理0 bytes申请。Class专属版本还应该处理“比正确大小更大的（错误）申请”
+
+* operator delete应该在收到null指针时不做任何事。Class专属版本则还应该处理“比正确大小更大的（错误）申请”
+
+## 条款52：歇了placement new也要写placement delete
+
+  要确定不要无意识的覆盖了正常版本。
+
+## 条款53：不要忽视编译器的警告
+
+  努力在你的编译器的最高警告级别下争取“无任何警告”
+
+## 条款54：熟悉包括TR1在内的标准程序库
+
+## 条款55：熟悉Boost
+
+* Boost两大特点：与标准委员会之间关系密切；接纳程序库的过程基于公开的peer review
