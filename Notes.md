@@ -222,7 +222,7 @@ Notes for _Effective C++_
 
   new配对delete，new[]配对delte[]
   
-## 条款17：以独立语句将newed对象置入只能指针
+## 条款17：以独立语句将newed对象置入智能指针
 
 * 在“资源被创建”和“资源被转换为资源管理对象”两个时间点之间有可能发生异常。
 
@@ -699,7 +699,7 @@ Notes for _Effective C++_
 
 * operator delete应该在收到null指针时不做任何事。Class专属版本则还应该处理“比正确大小更大的（错误）申请”
 
-## 条款52：歇了placement new也要写placement delete
+## 条款52：写了placement new也要写placement delete
 
   要确定不要无意识的覆盖了正常版本。
 
